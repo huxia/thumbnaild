@@ -10,7 +10,7 @@ the missing thumbnail service for amazone AWS S3.
 ```
 
 Features:
-* generate thumabnails for images storaged on AWS S3 through HTTP
+* generate thumabnails for images storaged on AWS S3 through HTTP (uses imagemagick)
 * caching support on both hard-disk & S3
 * multi bucket & account support (checkout /config/buckets/)
 * user-defined thumbanil schemas support (checkout /config/schemas/)
