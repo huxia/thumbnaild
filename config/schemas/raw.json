@@ -1,0 +1,9 @@
+{
+	"parent": null,
+	"processors": [],
+	"local_cache": {
+		"max_cache_time": 86400,
+		"max_cache_count": 200
+	},
+	"remote_cache": false
+}

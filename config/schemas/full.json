@@ -1,0 +1,17 @@
+{
+	"parent": "raw",
+	"processors": [{
+		"function": "resize",
+		"arguments": {
+			"width": 800,
+			"height": 800,
+			"strip": false,
+			"format": "jpg"
+		}
+		}],
+	"remote_cache": true,
+	"local_cache": {
+		"max_cache_time": 86400,
+		"max_cache_count": 200
+	}
+}

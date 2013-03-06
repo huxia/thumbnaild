@@ -1,0 +1,11 @@
+{
+	"storage": "s3",
+	"storage_config": {
+		"accessKeyId": "...", 
+		"secretAccessKey": "...",
+		"bucket": "..."
+	},
+	"shared_secret": "secret!",
+	"cache_remotely": true,
+	"cache_locally": true
+}

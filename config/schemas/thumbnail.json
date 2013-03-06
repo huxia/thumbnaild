@@ -1,0 +1,15 @@
+{
+	"parent": "full",
+	"processors": [{
+		"function": "crop",
+		"arguments": {
+			"width": 100,
+			"height": 100
+		}
+		}],
+	"local_cache": {
+		"max_cache_time": -1,
+		"max_cache_count": 2000
+	},
+	"remote_cache": true
+}
