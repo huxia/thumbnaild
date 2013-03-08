@@ -1,3 +1,5 @@
+config/buckets/*
+
 lib-cov
 *.seed
 *.log

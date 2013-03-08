@@ -5,6 +5,8 @@ var   fs = require('fs')
 	, storage = require('./storage')
 	, crypto = require('crypto')
 	, imageProcessor = require('./image_processor')
+	, async = require('async')
+	, util = require('util')
 	;
 function md5(str){
 	var md5 = crypto.createHash('md5');
@@ -99,14 +101,157 @@ function writeCache(bucket, schema, path, newData){
 	console.info('writeCache ' + schema.id + ' ' + path );
 	_cache(false, bucket, schema, path, newData, null);
 }
-exports.requestThumbnail = function(objectInfo, callback){
+
+var SIGNING_BASESTRING_FILE_MD5_FORMAT = "__file_%s_md5=%s";
+var SIGNING_PARAM_NAME = 'sign';
+exports.SIGNING_BASESTRING_FILE_MD5_FORMAT = SIGNING_BASESTRING_FILE_MD5_FORMAT;
+exports.SIGNING_PARAM_NAME = SIGNING_PARAM_NAME;
+
+exports.verifyHttpRequestSigning = function(request, secret, callback){
+	var exp = new RegExp('([\?\&])' + SIGNING_PARAM_NAME + '=([^\&]*)(\&|$)');
+	var match = request.url.match(exp);
+	var requestSign = match && match[2] || null;
+	if (!requestSign || !requestSign.length){
+		callback(false);
+		return;
+	}
+	exports.getRequestSigning({
+		url: request.url.replace(exp, '$1$3'), // get rid of sign=xxx
+		files: request.files,
+		body: request.body,
+		method: request.method
+	}, secret, function(err, sign){
+		if(err){
+			callback(false);
+			return;
+		}
+		callback(sign == requestSign);
+	});
+}
+
+exports.getRequestSigningBaseString = function(request, callback){
+	if (typeof request == 'string')
+		request = {url: request};
+	var urlMatch = request.url.match(/^([^\?]*)(\?)?(.*)?$/);
+	var queryParts = (urlMatch[3] || '').split('&');
+	var queries = [];
+	for (var i = 0; i < queryParts.length; i++) {
+		var kvMatch = queryParts[i].match(/([^=]*)(=)?(.*)?/);
+		if (kvMatch[1] && kvMatch[1].length){
+			var k = kvMatch[1] || "";
+			var v = kvMatch[3] || "";
+			queries.push(k + '=' + v);
+		}
+	}
+
+	var posts = [];
+
+	if (request.body){
+		if (typeof request.body == 'string'){
+			var bodyParts = request.body.split('&');
+			for (var i = 0; i < bodyParts.length; i++) {
+				var kvMatch = bodyParts[i].match(/([^=]*)(=)?(.*)?/);
+				if (kvMatch[1] && kvMatch[1].length){
+					var k = kvMatch[1] || "";
+					var v = kvMatch[3] || "";
+					posts.push(k + '=' + v);
+				}
+			}
+		}else{
+			for (var i in request.body) {
+				posts.push(encodeURIComponent(i) + '=' + encodeURIComponent(request.body[i]));
+			}
+		}
+	}
+
+
+	var doCallback = function(method, uri, queries, posts, files){
+		for(var i in files)
+			posts.push(files[i]);
+		
+		var baseString = [method || 'GET', ' ', uri, '?', queries.sort().join('&'), "\n", posts.sort().join('&')].join('');
+		callback(null, baseString);
+	};
+
+	if (request.files){
+		var funcsForCalMd5 = []
+		for (var i in request.files) {
+			var file = request.files[i];
+			if (typeof file == 'string'){
+				funcsForCalMd5.push(function(cb){
+					var shasum = crypto.createHash('md5');
+					var s = fs.ReadStream(file);
+					s.on('data', function(d) { shasum.update(d); });
+					s.on('end', function() {
+					    var md5 = shasum.digest('hex');
+						cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));				    
+					});
+				});
+			}else if (file.path){
+				funcsForCalMd5.push(function(cb){
+					var shasum = crypto.createHash('md5');
+					var s = fs.ReadStream(file.path);
+					s.on('data', function(d) { shasum.update(d); });
+					s.on('end', function() {
+					    var md5 = shasum.digest('hex');
+						cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));				    
+					});
+				});
+			}else if(typeof Stream != 'undefined' && (file instanceof Stream)){
+				funcsForCalMd5.push(function(cb){
+					var shasum = crypto.createHash('md5');
+					file.on('data', function(d) { shasum.update(d); });
+					file.on('end', function() {
+					    var md5 = shasum.digest('hex');
+						cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));				    
+					});
+				});
+			}else if(file instanceof Buffer){
+				funcsForCalMd5.push(function(cb){
+					var md5 = crypto.createHash('md5').update(file).digest("hex");
+					cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));
+				});
+			}else{
+				callback('Illegal file', null);
+				return;
+			}
+		}
+		async.parallel(funcsForCalMd5, function(error, results){
+			if(error){
+				callback(error, null);
+				return;
+			}
+
+			doCallback(request.method, urlMatch[1], queries, posts, results);
+		})
+		return;
+	}else{
+		doCallback(request.method, urlMatch[1], queries, posts, []);
+	}
+}
+
+exports.getRequestSigning = function(request, secret, callback){
+	exports.getRequestSigningBaseString(request, function(err, baseString){
+		if(err){
+			callback(err, null);
+			return;
+		}
+
+		callback(null, crypto.createHmac('sha1', secret).update(baseString).digest('hex'));
+	});
+}
+exports.loadBucket = loadBucket;
+exports.requestThumbnaild = function(objectInfo, callback){
 	var bucket = objectInfo._bucket ? objectInfo._bucket : loadBucket(objectInfo.bucket);
-	if (!bucket)
+	if (!bucket){
 		callback({status: 500, message: 'Bucket not found: ' + objectInfo.bucket}, null);
+		return;
+	}
 	var schema = loadSchema(objectInfo.schema);
-	if (!schema)
+	if (!schema){
 		callback({status: 404, message: 'Schema not found: ' + objectInfo.schema}, null);
-	
+		return;
+	}
 	readCache(bucket, schema, objectInfo.path, function(cachedData){
 		if (cachedData){
 			callback(null, cachedData);
@@ -129,7 +274,7 @@ exports.requestThumbnail = function(objectInfo, callback){
 				callback(null, data);
 			});
 		}else if(schema['parent']){
-			exports.requestThumbnail({
+			exports.requestThumbnaild({
 				bucket: objectInfo.bucket,
 				_bucket: bucket,
 				schema: schema['parent'],

@@ -1,12 +1,23 @@
 {
-    "name": "s3-thumbnaild"
+    "name": "thumbnaild"
+  , "description": "the missing thumbnail service for amazone AWS S3"
   , "version": "0.0.1"
   , "private": true
+  , "homepage": "https://github.com/huxia/thumbnaild"
+  , "repository": {
+    "type": "git",
+    "url": "git://github.com/huxia/thumbnaild.git"
+  }
+  , "main": "./core.js"
   , "dependencies": {
       "express": ">= 3.0.0"
     , "ejs": ">= 0.0.1"
     , "aws-sdk": ">= 0.9.0"
     , "imagemagick": "latest"
     , "moment": "latest"
+    , "async": "0.2.6"
+  }
+  , "devDependencies": {
+      "mocha": "latest"
   }
 }
