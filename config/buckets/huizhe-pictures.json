@@ -1,11 +1,11 @@
 {
 	"storage": "s3",
 	"storage_config": {
-		"accessKeyId": "...", 
-		"secretAccessKey": "...",
-		"bucket": "..."
+		"accessKeyId": "..AWS access key id..", 
+		"secretAccessKey": "..AWS secret access key..",
+		"bucket": "..bucket name in AWS S3.."
 	},
-	"shared_secret": "secret!",
+	"shared_secret": null,
 	"cache_remotely": true,
 	"cache_locally": true
 }

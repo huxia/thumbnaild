@@ -1,8 +1,12 @@
 {
     "name": "thumbnaild"
+  , "author": {
+    "name": "Huizhe XIAO",
+    "email": "huizhe.xiao@gmail.com"
+  }
   , "description": "the missing thumbnail service for amazone AWS S3"
   , "version": "0.0.1"
-  , "private": true
+  , "private": false
   , "homepage": "https://github.com/huxia/thumbnaild"
   , "repository": {
     "type": "git",
