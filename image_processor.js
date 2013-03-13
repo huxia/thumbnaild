@@ -26,7 +26,7 @@ function runImagemagickProcessors(processors, i, srcData, callback){
 		callback(null, srcData);
 		return;
 	}
-	processor = processors[i];
+	var processor = processors[i];
 	console.info(processor);
 	var func = im[processor['function']];
 	if(typeof func != 'function')
