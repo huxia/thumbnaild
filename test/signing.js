@@ -7,7 +7,7 @@ var request1Signing = "d4320dd69a4e2214e1a285fe7ca2ccb2db98ec3e";
 var request1Signed = {url: 'http://band2302.com/?f=2&a[]=b&a[]=c&e=f&sign=' + request1Signing + '&&&&', body:{'sd': 'sdsd', '21323':'sad+-23'}, files: {'aa' : new Buffer('File Content')}};
 var request1Fake = {url: 'http://band2302.com/?f=2&a[]=b&a[]=c&e=f&sign=FAKE' + request1Signing + '&&&&', body:{'sd': 'sdsd', '21323':'sad+-23'}, files: {'aa' : new Buffer('File Content')}};
 
-describe("request 1 signing", function(){
+describe("test async signing", function(){
 	it("should return correct base string", function(done){
 		core.getRequestSigningBaseString(request1Unsigned, function(err, baseStr){
 			assert(!err);
@@ -33,5 +33,14 @@ describe("request 1 signing", function(){
 			assert(!ok);
 			done();
 		});
+	});
+});
+
+describe("test sync signing", function(){
+	it("should return correct base string", function(){
+		assert(request1BaseString == core.getRequestSigningBaseStringSync(request1Unsigned));
+	});
+	it("should return correct signing string", function(){
+		assert(request1Signing == core.getRequestSigningSync(request1Unsigned, request1Secret));
 	});
 });

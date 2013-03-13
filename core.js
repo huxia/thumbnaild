@@ -128,6 +128,9 @@ exports.verifyHttpRequestSigning = function(request, secret, callback){
 		callback(sign == requestSign);
 	});
 }
+exports.getRequestSigningBaseStringSync = function(request){
+	return exports.getRequestSigningBaseString(request, "sync");
+};
 
 exports.getRequestSigningBaseString = function(request, callback){
 	if (typeof request == 'string')
@@ -170,10 +173,15 @@ exports.getRequestSigningBaseString = function(request, callback){
 			posts.push(files[i]);
 		
 		var baseString = [method || 'GET', ' ', uri, '?', queries.sort().join('&'), "\n", posts.sort().join('&')].join('');
-		callback(null, baseString);
+		if (typeof callback == 'function'){
+			callback(null, baseString);
+		}
+		return baseString;
 	};
 
-	if (request.files){
+	if (!request.files){
+		return doCallback(request.method, urlMatch[1], queries, posts, []);
+	}else {
 		var funcsForCalMd5 = []
 		for (var i in request.files) {
 			var file = request.files[i];
@@ -187,7 +195,7 @@ exports.getRequestSigningBaseString = function(request, callback){
 						cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));				    
 					});
 				});
-			}else if (file.path){
+			}else if (file.path && typeof callback == 'function'){
 				funcsForCalMd5.push(function(cb){
 					var shasum = crypto.createHash('md5');
 					var s = fs.ReadStream(file.path);
@@ -197,7 +205,7 @@ exports.getRequestSigningBaseString = function(request, callback){
 						cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));				    
 					});
 				});
-			}else if(typeof Stream != 'undefined' && (file instanceof Stream)){
+			}else if(typeof Stream != 'undefined' && file instanceof Stream && typeof callback == 'function'){
 				funcsForCalMd5.push(function(cb){
 					var shasum = crypto.createHash('md5');
 					file.on('data', function(d) { shasum.update(d); });
@@ -212,21 +220,21 @@ exports.getRequestSigningBaseString = function(request, callback){
 					cb(null, util.format(SIGNING_BASESTRING_FILE_MD5_FORMAT, encodeURIComponent(i), encodeURIComponent(md5)));
 				});
 			}else{
-				callback('Illegal file', null);
-				return;
+				if (typeof callback == 'function')
+					callback('Illegal file', null);
+				return null;
 			}
 		}
+		var _syncResult = null;
 		async.parallel(funcsForCalMd5, function(error, results){
 			if(error){
 				callback(error, null);
 				return;
 			}
 
-			doCallback(request.method, urlMatch[1], queries, posts, results);
+			_syncResult = doCallback(request.method, urlMatch[1], queries, posts, results);
 		})
-		return;
-	}else{
-		doCallback(request.method, urlMatch[1], queries, posts, []);
+		return _syncResult;
 	}
 }
 
@@ -239,6 +247,11 @@ exports.getRequestSigning = function(request, secret, callback){
 
 		callback(null, crypto.createHmac('sha1', secret).update(baseString).digest('hex'));
 	});
+}
+
+exports.getRequestSigningSync = function(request, secret){
+	var baseString = exports.getRequestSigningBaseStringSync(request);
+	return crypto.createHmac('sha1', secret).update(baseString).digest('hex');
 }
 exports.loadBucket = loadBucket;
 exports.requestThumbnaild = function(objectInfo, callback){
