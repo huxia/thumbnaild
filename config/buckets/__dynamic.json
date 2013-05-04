@@ -1,0 +1,5 @@
+{
+	"shared_secret": "fill in your own secret",
+	"cache_remotely": true,
+	"cache_locally": true
+}

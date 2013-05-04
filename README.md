@@ -15,10 +15,32 @@ the missing thumbnail service for amazone AWS S3.
 * multi bucket & account support (checkout /config/buckets/)
 * user-defined thumbanil schemas support (checkout /config/schemas/)
 
+## Usage:
+
+1. Install ImageMagick (for processing images)
+  http://www.imagemagick.org/script/index.php
+2. Install Node
+  http://nodejs.org/
+3. Install thumbnaild
+```
+npm install -g thumbnaild
+```
+4. Modify the config files in /config/buckets & /config/schemas
+5. Kick off the thumbnail server
+```
+thumbnaild start [-port <port defaults to 8011>]
+```
+6. Your thumbnail can now be accessed via
+```
+http://<your server name>:8011/<thumbnail schema>/<s3 bucket name>/<s3 image full path>
+```
+
+
+
 ## Planing:
 * support for other storage system other than S3 (mogilefs, etc)
 * more testcases
-
+* more documents
 ## License 
 
 (The MIT License)

@@ -1,14 +1,16 @@
-
-/**
- * Module dependencies.
- */
-
+#!/usr/bin/env node
 var express = require('express')
 	, fs = require('fs')
 	, path = require('path')
 	, moment = require('moment')
 	, core = require('./core')
+	, argv = require('optimist').argv
+	, deepExtend = require('deep-extend')
 	;
+
+var settings = deepExtend({
+	port: 8011
+}, argv);
 
 var app = module.exports = express();
 
@@ -41,6 +43,7 @@ function verifySigning(req, res, next){
 	}
 	if (!bucket['shared_secret'] || !bucket['shared_secret'].length){
 		next();
+		return;
 	}
 	core.verifyHttpRequestSigning(req, bucket['shared_secret'], function(ok){
 		if (!ok){
@@ -59,6 +62,7 @@ function verifySigning(req, res, next){
 						res.write('<h1>Signing error</h1>');
 						res.write('<h2>base string should be:</h2><code><pre  style="background-color: #ccc;">' + baseStr + '</pre></code>');
 						res.write('<h2>sign string should be:</h2><code><pre  style="background-color: #ccc;">' + sign + '</pre></code>');
+						res.write('<h2>secret</h2><code><pre style="background-color: #ccc">' + bucket['shared_secret'] + '</pre></code>');
 						res.end();
 					});
 				})
@@ -77,9 +81,6 @@ function verifySigning(req, res, next){
 
 // Routes
 
-// schema example: 
-// resize[width=50%,height=50%,quality=0.2]
-// crop[width=50,height=50]
 app.get('/:schema_id/:bucket_id/*', function(req, res) {
 	verifySigning(req, res, function(){
 		var objectInfo = {
@@ -109,5 +110,5 @@ app.get('/:schema_id/:bucket_id/*', function(req, res) {
 	});
 });
 
-app.listen(3000);
-console.log("Express server listening on port %d in %s mode", 3000, app.settings.env);
+app.listen(settings.port);
+console.log("Express server listening on port %d in %s mode", settings.port, app.settings.env);

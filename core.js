@@ -7,6 +7,7 @@ var   fs = require('fs')
 	, imageProcessor = require('./image_processor')
 	, async = require('async')
 	, util = require('util')
+	, deepExtend = require('deep-extend')
 	;
 function md5(str){
 	var md5 = crypto.createHash('md5');
@@ -19,29 +20,55 @@ function mkdir(dir){
 	exports.mkdir(path.dirname(dir));
 	fs.mkdirSync(dir);
 }
-
 function loadSchema(schema){
 	var p = __dirname + '/config/schemas/' + schema + '.json';
 	if (!fs.existsSync(p)){
 		return null;
 	}
 	var result = require(p);
-	result.id = schema;
+	if (!result.id) result.id = schema;
 	result.isRaw = function(){
 		return this['parent'] == null && (!this['processors'] || this['processors'].length == 0);
 	};
 	return result;
 }
-function loadBucket(bucket){
-	var p = __dirname + '/config/buckets/' + bucket + '.json';
+var DYNAMIC_BUCKET_SPLITER = ':';
+function encodeBucket(bucketId, additionalBucketInfo, key){
+	if (!additionalBucketInfo){
+		return bucketId;
+	}
+	var cipher = crypto.createCipher('aes-256-cbc',key);
+	var crypted = cipher.update(JSON.stringify(additionalBucketInfo),'utf8','hex');
+	crypted += cipher.final('hex');
+
+	return bucketId + DYNAMIC_BUCKET_SPLITER + crypted;
+}
+exports.encodeBucket = encodeBucket;
+function loadBucket(bucketId){
+	var additionalBucketInfoStr = null;
+	if (bucketId && (bucketId.indexOf(DYNAMIC_BUCKET_SPLITER) > -1)){
+		additionalBucketInfoStr = bucketId.substr(bucketId.indexOf(DYNAMIC_BUCKET_SPLITER) + 1);
+		bucketId = bucketId.substr(0, bucketId.indexOf(DYNAMIC_BUCKET_SPLITER));
+	}
+
+	var p = __dirname + '/config/buckets/' + bucketId + '.json';
 	if (!fs.existsSync(p)){
 		return null;
 	}
 	var result = require(p);
-	result.id = bucket;
+	if (additionalBucketInfoStr && additionalBucketInfoStr.length){
+		var decipher = crypto.createDecipher('aes-256-cbc', result['shared_secret']);
+		var dec = decipher.update(additionalBucketInfoStr,'hex','utf8');
+		dec += decipher.final('utf8');
+
+		result = deepExtend(result, JSON.parse(dec));
+		result.id = bucketId + '~' + md5(additionalBucketInfoStr);
+	}
+	if (!result.id) result.id = bucketId;
 	return result;
 }
 
+exports.loadBucket = loadBucket;
 function localStorageID(objectInfo){
 	return md5(objectInfo.bucket + '/' + objectInfo.path);
 }
@@ -80,9 +107,7 @@ function _cache(read, bucket, schema, path, newData, callback){
 	}else{
 
 		if (bucket['cache_locally'] && schema['local_cache']){
-			if (!localCache.existsSync(localCacheType, localCacheID)){
-				localCache.write(localCacheType, localCacheID, newData);
-			}
+			localCache.write(localCacheType, localCacheID, newData);
 		}
 		if (bucket['cache_remotely'] && schema['remote_cache']){
 			var s = storage(bucket);
@@ -98,7 +123,6 @@ function readCache(bucket, schema, path, callback){
 	_cache(true, bucket, schema, path, null, callback);
 }
 function writeCache(bucket, schema, path, newData){
-	console.info('writeCache ' + schema.id + ' ' + path );
 	_cache(false, bucket, schema, path, newData, null);
 }
 
@@ -108,6 +132,10 @@ exports.SIGNING_BASESTRING_FILE_MD5_FORMAT = SIGNING_BASESTRING_FILE_MD5_FORMAT;
 exports.SIGNING_PARAM_NAME = SIGNING_PARAM_NAME;
 
 exports.verifyHttpRequestSigning = function(request, secret, callback){
+	if (!secret || !secret.length){
+		callback(true);
+		return;
+	}
 	var exp = new RegExp('([\?\&])' + SIGNING_PARAM_NAME + '=([^\&]*)(\&|$)');
 	var match = request.url.match(exp);
 	var requestSign = match && match[2] || null;
@@ -135,6 +163,8 @@ exports.getRequestSigningBaseStringSync = function(request){
 exports.getRequestSigningBaseString = function(request, callback){
 	if (typeof request == 'string')
 		request = {url: request};
+	// get rid of schema and host
+	request.url = request.url.replace(/^[\w\-]+\:\/+[^\/]+/, '');
 	var urlMatch = request.url.match(/^([^\?]*)(\?)?(.*)?$/);
 	var queryParts = (urlMatch[3] || '').split('&');
 	var queries = [];
@@ -245,15 +275,43 @@ exports.getRequestSigning = function(request, secret, callback){
 			return;
 		}
 
-		callback(null, crypto.createHmac('sha1', secret).update(baseString).digest('hex'));
+		callback(null, secret && secret.length ? crypto.createHmac('sha1', secret).update(baseString).digest('hex') : null);
 	});
 }
 
 exports.getRequestSigningSync = function(request, secret){
+	if (!secret || !secret.length)
+		return null;
 	var baseString = exports.getRequestSigningBaseStringSync(request);
 	return crypto.createHmac('sha1', secret).update(baseString).digest('hex');
 }
-exports.loadBucket = loadBucket;
+// generateThumbanilAndSaveToRemote(rawData, schema, bucket, callback)
+// generateThumbnail(rawData, schema, callback)
+exports.generateThumbnail = function(rawData, schema, callback){
+	if(!schema)
+		callback('schema is null', null);
+	if(schema.isRaw()){
+		callback(null, rawData);
+	}else if(schema['parent']){
+		exports.generateThumbnail(rawData, localSchema(schema['parent']), function(error, data){
+			if(error || !data){
+				callback(error ? error : 'unknown error', null);
+				return;
+			}
+			imageProcessor.processImage(schema['processors'], data, function(error, data){
+				if (error || !data){
+					callback('Image process error: ' + schema['parent'] + ' => ' + schema['id'], null);
+					return;
+				}
+				writeCache(bucket, schema, objectInfo.path, data);
+				callback(null, data);
+			});
+		});
+	}else{
+		callback("schema's parent not found" + schema.id, null);
+	}
+}
+// scanAndGenerateThumbnailForRemote(bucket, from, callback)
 exports.requestThumbnaild = function(objectInfo, callback){
 	var bucket = objectInfo._bucket ? objectInfo._bucket : loadBucket(objectInfo.bucket);
 	if (!bucket){
