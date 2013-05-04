@@ -21,7 +21,7 @@ function mkdir(dir){
 	fs.mkdirSync(dir);
 }
 function loadSchema(schema){
-	var p = __dirname + '/config/schemas/' + schema + '.json';
+	var p = global.THUMBNAILD_HOME + '/config/schemas/' + schema + '.json';
 	if (!fs.existsSync(p)){
 		return null;
 	}
@@ -51,7 +51,7 @@ function loadBucket(bucketId){
 		bucketId = bucketId.substr(0, bucketId.indexOf(DYNAMIC_BUCKET_SPLITER));
 	}
 
-	var p = __dirname + '/config/buckets/' + bucketId + '.json';
+	var p = global.THUMBNAILD_HOME + '/config/buckets/' + bucketId + '.json';
 	if (!fs.existsSync(p)){
 		return null;
 	}

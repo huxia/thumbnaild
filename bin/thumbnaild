@@ -5,12 +5,36 @@ var fs = require('fs')
 	, argv = require('optimist').argv
 	, deepExtend = require('deep-extend')
 	, forever = require("forever-monitor")
+	, ncp = require("ncp").ncp
 	;
 var settings = deepExtend({
 	port: 8011,
-	retry: 1
+	retry: 1,
+	home: path.resolve('.')
 }, argv);
-var pidFile = __dirname + '/tmp/' + settings['port'] + '.pid';
+
+function usage(){
+	console.error("Usage: thumbanild <install|start|stop|restart> [path]\n");
+	process.exit(1);
+}
+
+var command = null;
+if (typeof argv._ == 'object' && argv._.length == 2){
+	command = argv._[0];
+	settings['home'] = path.resolve(argv._[1]);
+}else if(typeof argv._ == 'object' && argv._.length == 1){
+	command = argv._[0];
+}else if(typeof argv._ == 'string'){
+	command = argv._;
+}else{
+	usage();
+}
+
+
+
+var tmpDir = settings['home'] + '/tmp';
+
+var pidFile = tmpDir + '/' + settings['port'] + '.pid';
 
 
 
@@ -22,15 +46,16 @@ function start(){
 	function daemon(){
 		console.log('Server up and running, go background.');
 		console.info(pidFile);
+		fs.writeFileSync(pidFile, process.pid + "");
 		goDaedmon();
-		fs.writeFile(pidFile, process.pid);
+		fs.writeFileSync(pidFile, process.pid + "");
 	}
-	console.info("Server started");
+	console.info("Server started at " + settings['home']);
 
-	var child = new (forever.Monitor)('app.js', {
+	var child = new (forever.Monitor)(path.normalize(__dirname + '/../app.js'), {
 		max: settings['retry'],
 		silent: false,
-		options: ['-port', settings['port']]
+		options: ['--port', settings['port'], '--home', settings['home']]
 	});
 
 	child.on('exit', function () {
@@ -56,16 +81,48 @@ function stop(callback){
 		callback();
     });
 }
+if (command == 'install'){
 
-if (argv._ == 'start'){
-	start();
-}else if(argv._ == 'stop'){
-	stop(function(){
+	if(!fs.existsSync(settings['home']))
+		fs.mkdirSync(settings['home']);
 
+	if (!fs.existsSync(tmpDir))
+		fs.mkdirSync(tmpDir);
+
+	// copy sample config files & schema files
+	ncp.limit = 16;
+
+	ncp(path.normalize(__dirname + '/../config'), path.join(settings['home'], 'config'), function (err) {
+		if (err) {
+			return console.error(err);
+		}
+		console.log('Thumbnaild installed at ' + settings['home'] + "\n" +
+			"Next:\n" +
+			"1. edit your config files in /config/buckets & /config/schemas\n" + 
+			"2. run \"thumbnaild start\" at " + settings['home'] + "\n" +
+			"3. visit http://localhost:8011/thumbnail/<your bucket name>/<path>\n" 
+			);
 	});
-}else if(argv._ == 'restart'){
-	
-	stop(function(){
+}else {
+	if(!fs.existsSync(path.join(settings['home'], 'config'))){
+		console.error("Thumbnaild not installed, you should first run:\n\"thumbnaild install " + settings['home'] + "\"");
+		return;
+	}
+
+	if (command == 'start'){
 		start();
-	});
+	}else if(command == 'stop'){
+		stop(function(){
+
+		});
+	}else if(command == 'restart'){
+		
+		stop(function(){
+			start();
+		});
+	}else{
+		usage();
+	}
 }
+
+

@@ -1,16 +1,21 @@
 #!/usr/bin/env node
+var argv = require('optimist').argv
+	, deepExtend = require('deep-extend')
+	, path = require('path')
+	;
+var settings = deepExtend({
+	port: 8011,
+	home: '.'
+}, argv);
+
+global.THUMBNAILD_HOME = path.resolve(settings['home']);
+
 var express = require('express')
 	, fs = require('fs')
-	, path = require('path')
 	, moment = require('moment')
 	, core = require('./core')
-	, argv = require('optimist').argv
-	, deepExtend = require('deep-extend')
 	;
 
-var settings = deepExtend({
-	port: 8011
-}, argv);
 
 var app = module.exports = express();
 

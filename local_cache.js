@@ -6,7 +6,7 @@ var maxCacheTime = {};
 var maxCacheCount = {};
 
 
-var tmpFolder = __dirname + '/tmp';
+var tmpFolder = global.THUMBNAILD_HOME + '/tmp';
 
 
 var removeFileTimeout = {};
