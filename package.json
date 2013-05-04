@@ -5,7 +5,7 @@
     "email": "huizhe.xiao@gmail.com"
   }
   , "description": "the missing thumbnail service for amazone AWS S3"
-  , "version": "0.0.3"
+  , "version": "0.0.4"
   , "private": false
   , "homepage": "https://github.com/huxia/thumbnaild"
   , "repository": {
