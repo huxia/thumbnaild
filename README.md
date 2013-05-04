@@ -25,10 +25,10 @@ the missing thumbnail service for amazone AWS S3.
 ```
 npm install -g thumbnaild
 ```
-4. Modify the config files in /config/buckets & /config/schemas
+4. Modify the config files in /config/buckets & /config/schemas under /usr/local/lib/node_modules/thumbnaild
 5. Kick off the thumbnail server
 ```
-thumbnaild start [-port <port defaults to 8011>]
+sudo thumbnaild start [-port <port defaults to 8011>]
 ```
 6. Your thumbnail can now be accessed via
 ```
