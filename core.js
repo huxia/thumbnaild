@@ -7,6 +7,7 @@ var   fs = require('fs')
 	, imageProcessor = require('./image_processor')
 	, async = require('async')
 	, util = require('util')
+	, moment = require('moment')
 	, deepExtend = require('deep-extend')
 	;
 function md5(str){
@@ -130,8 +131,7 @@ var SIGNING_BASESTRING_FILE_MD5_FORMAT = "__file_%s_md5=%s";
 var SIGNING_PARAM_NAME = 'sign';
 exports.SIGNING_BASESTRING_FILE_MD5_FORMAT = SIGNING_BASESTRING_FILE_MD5_FORMAT;
 exports.SIGNING_PARAM_NAME = SIGNING_PARAM_NAME;
-
-exports.verifyHttpRequestSigning = function(request, secret, callback){
+function verifyHttpRequestSigning(request, secret, callback){
 	if (!secret || !secret.length){
 		callback(true);
 		return;
@@ -156,11 +156,13 @@ exports.verifyHttpRequestSigning = function(request, secret, callback){
 		callback(sign == requestSign);
 	});
 }
-exports.getRequestSigningBaseStringSync = function(request){
+exports.verifyHttpRequestSigning = verifyHttpRequestSigning;
+function getRequestSigningBaseStringSync(request){
 	return exports.getRequestSigningBaseString(request, "sync");
 };
+exports.getRequestSigningBaseStringSync = getRequestSigningBaseStringSync;
 
-exports.getRequestSigningBaseString = function(request, callback){
+function getRequestSigningBaseString(request, callback){
 	if (typeof request == 'string')
 		request = {url: request};
 	// get rid of schema and host
@@ -267,8 +269,9 @@ exports.getRequestSigningBaseString = function(request, callback){
 		return _syncResult;
 	}
 }
+exports.getRequestSigningBaseString = getRequestSigningBaseString;
 
-exports.getRequestSigning = function(request, secret, callback){
+function getRequestSigning (request, secret, callback){
 	exports.getRequestSigningBaseString(request, function(err, baseString){
 		if(err){
 			callback(err, null);
@@ -278,16 +281,18 @@ exports.getRequestSigning = function(request, secret, callback){
 		callback(null, secret && secret.length ? crypto.createHmac('sha1', secret).update(baseString).digest('hex') : null);
 	});
 }
+exports.getRequestSigning = getRequestSigning;
 
-exports.getRequestSigningSync = function(request, secret){
+function getRequestSigningSync(request, secret){
 	if (!secret || !secret.length)
 		return null;
 	var baseString = exports.getRequestSigningBaseStringSync(request);
 	return crypto.createHmac('sha1', secret).update(baseString).digest('hex');
 }
+exports.getRequestSigningSync = getRequestSigningSync;
 // generateThumbanilAndSaveToRemote(rawData, schema, bucket, callback)
 // generateThumbnail(rawData, schema, callback)
-exports.generateThumbnail = function(rawData, schema, callback){
+function generateThumbnail(rawData, schema, callback){
 	if(!schema)
 		callback('schema is null', null);
 	if(schema.isRaw()){
@@ -311,8 +316,9 @@ exports.generateThumbnail = function(rawData, schema, callback){
 		callback("schema's parent not found" + schema.id, null);
 	}
 }
+exports.generateThumbnail = generateThumbnail;
 // scanAndGenerateThumbnailForRemote(bucket, from, callback)
-exports.requestThumbnaild = function(objectInfo, callback){
+function requestThumbnaild (objectInfo, callback){
 	var bucket = objectInfo._bucket ? objectInfo._bucket : loadBucket(objectInfo.bucket);
 	if (!bucket){
 		callback({status: 500, message: 'Bucket not found: ' + objectInfo.bucket}, null);
@@ -369,3 +375,81 @@ exports.requestThumbnaild = function(objectInfo, callback){
 		}
 	});
 }
+
+exports.requestThumbnaild = requestThumbnaild;
+// signing
+function verifySigning(req, res, next){
+	var bucket = loadBucket(req.params.bucket_id || req.params.bucket);
+	if (!bucket){
+		res.statusCode = 404;
+		res.write('Bucket id not found');
+		res.end();
+		return;
+	}
+	if (!bucket['shared_secret'] || !bucket['shared_secret'].length){
+		next();
+		return;
+	}
+	verifyHttpRequestSigning(req, bucket['shared_secret'], function(ok){
+		if (!ok){
+			if(app.settings.env == 'development'){
+				var exp = new RegExp('([\?\&])' + SIGNING_PARAM_NAME + '=([^\&]*)(\&|$)');
+				var request = {
+					url: req.url.replace(exp, '$1$3'),
+					method: req.method,
+					body: req.body,
+					files: req.files
+				};
+				getRequestSigningBaseString(request, function(err, baseStr){
+					getRequestSigning(request, bucket['shared_secret'], function(err, sign){
+						res.statusCode = 401;
+						res.set('Content-Type', 'text/html');
+						res.write('<h1>Signing error</h1>');
+						res.write('<h2>base string should be:</h2><code><pre  style="background-color: #ccc;">' + baseStr + '</pre></code>');
+						res.write('<h2>sign string should be:</h2><code><pre  style="background-color: #ccc;">' + sign + '</pre></code>');
+						//res.write('<h2>secret</h2><code><pre style="background-color: #ccc">' + bucket['shared_secret'] + '</pre></code>');
+						res.end();
+					});
+				})
+				return;	
+			}
+			res.statusCode = 401;
+			res.write('signing incorrect');
+			res.end();
+			return;
+		}
+		next();
+	});
+}
+exports.verifySigning = verifySigning;
+
+function getThumbnail(req, res){
+	verifySigning(req, res, function(){
+		var objectInfo = {
+			bucket: req.params.bucket_id || req.params.bucket,
+			schema: req.params.schema_id || req.params.schema,
+			path: req.params[0]
+		};
+
+		requestThumbnaild(objectInfo, function(error, data){
+			if(error || !data){
+				error = error ? error : {status: 500 };
+				console.info(error);
+				res.statusCode = error.status;
+				res.write(error.message || 'Unknown error');
+				res.end();
+				return;
+			}
+			var age = 3600;
+			var expires = moment().utc().add('s', age).format('ddd, D MMM YYYY HH:mm:ss') + ' GMT';
+			res.set('Cache-Control', "private, max-age=" + age);
+			//res.sendDate = false;
+			res.set('Expires', expires);
+			res.set('Pragma', 'cache');
+			res.type('jpeg');
+			res.end(data);
+		});
+	});
+}
+
+exports.getThumbnail = getThumbnail;

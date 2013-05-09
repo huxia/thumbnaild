@@ -15,7 +15,7 @@ the missing thumbnail service for amazone AWS S3.
 * multi bucket & account support (checkout /config/buckets/)
 * user-defined thumbanil schemas support (checkout /config/schemas/)
 
-## Usage:
+## Usage (command-line):
 
 1. Install ImageMagick (for processing images)
   http://www.imagemagick.org/script/index.php
@@ -41,7 +41,15 @@ thumbnaild start [--port <port defaults to 8011>]
 http://<your server name>:8011/<thumbnail schema>/<s3 bucket name>/<s3 image full path>
 ```
 
+## Usage (programmaticlly)
 
+
+```
+// for express
+var thumbnaild = require('thumbnaild');
+var app = express();
+app.get('/:schema/:bucket/*', thumbnaild.getThumbnail);
+```
 
 ## Planing:
 * support for other storage system other than S3 (mogilefs, etc)
