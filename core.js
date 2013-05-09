@@ -96,10 +96,12 @@ function _cache(read, bucket, schema, path, newData, callback){
 				var s = storage(bucket);
 				if(s){
 					var remoteCachePath = s.cachePath(schema.id, path);
-					s.read(remoteCachePath, function(err, data){
-						if(callback) callback(data);
-					});
-					return;
+					if (remoteCachePath){
+						s.read(remoteCachePath, function(err, data){
+							if(callback) callback(data);
+						});
+						return;
+					}
 				}
 			}
 			if(callback) callback(null);
@@ -114,7 +116,9 @@ function _cache(read, bucket, schema, path, newData, callback){
 			var s = storage(bucket);
 			if (s) {
 				var remoteCachePath = s.cachePath(schema.id, path);
-				s.write(remoteCachePath, newData);
+				if(remoteCachePath){
+					s.write(remoteCachePath, newData);
+				}
 			}
 		}
 	}
@@ -341,7 +345,6 @@ function requestThumbnaild (objectInfo, callback){
 				return;
 			}
 			s.read(objectInfo.path, function(err, data){
-				console.info('here');
 				if(err || !data){
 					callback({status: 404, message: err || ('Not found: ' + objectInfo.path)}, null);
 					return;

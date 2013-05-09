@@ -45,7 +45,7 @@ http://<your server name>:8011/<thumbnail schema>/<s3 bucket name>/<s3 image ful
 
 
 ```
-// for express
+global.THUMBNAILD_HOME = 'your thumbnaild home folder'; // where thumbnaild will read bucket & schema configuration & store cache files
 var thumbnaild = require('thumbnaild');
 var app = express();
 app.get('/:schema/:bucket/*', thumbnaild.getThumbnail);
