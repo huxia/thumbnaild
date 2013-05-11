@@ -309,7 +309,7 @@ function generateThumbnail(rawData, schema, callback){
 			}
 			imageProcessor.processImage(schema['processors'], data, function(error, data){
 				if (error || !data){
-					callback('Image process error: ' + schema['parent'] + ' => ' + schema['id'], null);
+					callback('Image process error: ' + schema['parent'] + ' => ' + schema['id'] + "\n" + error, null);
 					return;
 				}
 				writeCache(bucket, schema, objectInfo.path, data);
@@ -328,7 +328,7 @@ function requestThumbnaild (objectInfo, callback){
 		callback({status: 500, message: 'Bucket not found: ' + objectInfo.bucket}, null);
 		return;
 	}
-	var schema = loadSchema(objectInfo.schema);
+	var schema = objectInfo._schema ? objectInfo._schema : loadSchema(objectInfo.schema);
 	if (!schema){
 		callback({status: 404, message: 'Schema not found: ' + objectInfo.schema}, null);
 		return;
@@ -354,7 +354,7 @@ function requestThumbnaild (objectInfo, callback){
 				callback(null, data);
 			});
 		}else if(schema['parent']){
-			exports.requestThumbnaild({
+			requestThumbnaild({
 				bucket: objectInfo.bucket,
 				_bucket: bucket,
 				schema: schema['parent'],
@@ -366,7 +366,7 @@ function requestThumbnaild (objectInfo, callback){
 				}
 				imageProcessor.processImage(schema['processors'], data, function(error, data){
 					if (error || !data){
-						callback({status: 500, message: 'Image process error: ' + schema['parent'] + ' => ' + schema['id']}, null);
+						callback({status: 500, message: 'Image process error: ' + schema['parent'] + ' => ' + schema['id'] + "\n" + error}, null);
 						return;
 					}
 					writeCache(bucket, schema, objectInfo.path, data);
@@ -395,7 +395,7 @@ function verifySigning(req, res, next){
 	}
 	verifyHttpRequestSigning(req, bucket['shared_secret'], function(ok){
 		if (!ok){
-			if(app.settings.env == 'development'){
+			if(req.app.settings.env == 'development'){
 				var exp = new RegExp('([\?\&])' + SIGNING_PARAM_NAME + '=([^\&]*)(\&|$)');
 				var request = {
 					url: req.url.replace(exp, '$1$3'),
@@ -433,6 +433,7 @@ function getThumbnail(req, res){
 			schema: req.params.schema_id || req.params.schema,
 			path: req.params[0]
 		};
+		objectInfo._schema = loadSchema(objectInfo.schema);
 
 		requestThumbnaild(objectInfo, function(error, data){
 			if(error || !data){
@@ -449,7 +450,19 @@ function getThumbnail(req, res){
 			//res.sendDate = false;
 			res.set('Expires', expires);
 			res.set('Pragma', 'cache');
-			res.type('jpeg');
+			if(objectInfo._schema){
+				if(!objectInfo._schema['parent']){
+					// raw
+					var ext = path.extname(path.basename(path));
+					if(ext.length > 1)
+						ext = ext.substr(1, ext.length - 1);
+					if(ext.length > 0){
+						res.type(ext);
+					}
+				}else{
+					res.type('jpeg');
+				}
+			}
 			res.end(data);
 		});
 	});
