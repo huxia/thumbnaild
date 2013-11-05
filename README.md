@@ -51,10 +51,12 @@ var app = express();
 app.get('/:schema/:bucket/*', thumbnaild.getThumbnail);
 ```
 
-## Planing:
+## Planning:
 * support for other storage system other than S3 (mogilefs, etc)
 * more testcases
 * more documents
+
+
 ## License 
 
 (The MIT License)
